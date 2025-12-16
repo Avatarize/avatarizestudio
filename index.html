@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Avatarize Studio</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Supabase client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Load Feather Icons script from unpkg -->
+    <script src="https://unpkg.com/feather-icons"></script>
+    <!-- Use Inter font -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.4s, color 0.4s;
+        }
+
+        /* Define CSS Variables for Theme */
+        .dark {
+            --bg-body: #0f172a; /* Slate 900 */
+            --bg-card: #1e293b; /* Slate 800 */
+            --bg-control: #334155; /* Slate 700 */
+            --text-primary: #a78bfa; /* Violet 400 */
+            --text-secondary: #f1f5f9; /* Slate 100 */
+            --border-color: #475569; /* Slate 600 */
+            --grid-line-color: #334155; /* Slate 700 */
+        }
+        .light {
+            --bg-body: #f1f5f9; /* Slate 100 */
+            --bg-card: #ffffff; /* White */
+            --bg-control: #e2e8f0; /* Slate 200 */
+            --text-primary: #6d28d9; /* Violet 700 */
+            --text-secondary: #1e293b; /* Slate 800 (Dark/Black) */
+            --border-color: #cbd5e1; /* Slate 300 */
+            --grid-line-color: #cbd5e1; /* Slate 300 */
+        }
+
+        /* Apply Variables */
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-secondary);
+        }
+        .bg-app-card { background-color: var(--bg-card); border-color: var(--border-color); }
+        .bg-control-panel { background-color: var(--bg-control); }
+        .text-primary-color { color: var(--text-primary); }
+        .border-primary-color { border-color: var(--border-color); }
+
+        /* Custom styles for the drawing cursor */
+        .drawing-cursor {
+            position: absolute;
+            pointer-events: none;
+            border: 2px solid var(--text-secondary); /* Border color based on theme for visibility */
+            opacity: 0.7;
+            border-radius: 9999px; /* Circle */
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+            transition: all 0.1s;
+        }
+
+        /* Pixel Grid Styles */
+        #pixel-grid {
+            display: grid;
+            grid-template-columns: repeat(32, 1fr);
+            gap: 0; 
+            border: 1px solid var(--grid-line-color);
+            background-color: var(--bg-body); 
+        }
+        #pixel-grid > div {
+            border: 1px solid var(--grid-line-color);
+            box-sizing: border-box; 
+            transition: background-color 100ms;
+        }
+
+        /* Loading Spinner CSS for connect button */
+        .loading-ring {
+            display: inline-block;
+            width: 1.25rem; 
+            height: 1.25rem; 
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s linear infinite;
+            margin-right: 0.25rem;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+
+<body class="min-h-screen p-4 sm:p-8 flex flex-col items-center transition-colors duration-500">
+
+    <div id="app" class="w-full max-w-6xl">
+        <header class="mb-8 flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
+            <!-- Title -->
+            <div class="text-center sm:text-left">
+                <!-- Spacing changed to space-x-4 -->
+                <h1 class="text-4xl font-extrabold mb-2 flex items-center justify-center sm:justify-start space-x-4 transition-colors duration-500">
+                    <!-- GitHub Icon (Feather Icon) -->
+                    <i data-feather="github" class="h-8 w-8 text-text-secondary transition-colors duration-500"></i>
+                    Avatarize Studio
+                </h1>
+                <p class="text-gray-400 dark:text-gray-400 text-sm">Create your own unique profile picture!</p>
+            </div>
+
+            <!-- Theme Toggle -->
+            <button id="theme-toggle" onclick="toggleTheme()" class="p-2 rounded-full bg-control-panel hover:opacity-80 transition-colors duration-300 shadow-md border border-border-color">
+                <!-- Moon Icon (Dark Mode Default) -->
+                <svg id="theme-icon-moon" class="h-6 w-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+                </svg>
+                <!-- Sun Icon (Light Mode) -->
+                <svg id="theme-icon-sun" class="h-6 w-6 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="display: block;">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                </svg>
+            </button>
+        </header>
+
+        <!-- Control Panel -->
+        <div class="bg-control-panel p-4 sm:p-6 rounded-xl shadow-2xl mb-6 transition-colors duration-500 border border-border-color">
+            <div class="flex flex-col space-y-4">
+                <!-- Mode Selector Row -->
+                <div class="flex space-x-2 bg-app-card p-1 rounded-lg border border-border-color justify-center">
+                    <button id="mode-pixel" onclick="setMode('pixel')" class="p-2 sm:px-4 rounded-lg font-medium transition-all duration-200">
+                        Pixel Art (32x32)
+                    </button>
+                    <button id="mode-draw" onclick="setMode('draw')" class="p-2 sm:px-4 rounded-lg font-medium transition-all duration-200">
+                        Custom Drawing
+                    </button>
+                    <button id="mode-upload" onclick="setMode('upload')" class="p-2 sm:px-4 rounded-lg font-medium transition-all duration-200">
+                        Picture Upload
+                    </button>
+                </div>
+
+                <!-- Colors and Actions Row -->
+                <div class="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0 sm:space-x-4">
+                    
+                    <!-- Color Selector -->
+                    <div class="flex items-center space-x-6">
+                        <!-- Foreground Color -->
+                        <div class="flex items-center space-x-3">
+                            <label for="color-picker" class="text-sm font-medium text-gray-700 dark:text-gray-300">Pen Color:</label>
+                            <input type="color" id="color-picker" value="#9333ea" class="w-10 h-10 rounded-full border-2 border-gray-600 cursor-pointer p-0.5">
+                        </div>
+                        <!-- Background Color -->
+                        <div class="flex items-center space-x-3">
+                            <label for="bg-color-picker" class="text-sm font-medium text-gray-700 dark:text-gray-300">Background:</label>
+                            <input type="color" id="bg-color-picker" value="#ffffff" onchange="initializeBackground(); updateProfilePreview();" class="w-10 h-10 rounded-full border-2 border-gray-600 cursor-pointer p-0.5">
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="flex space-x-3">
+                        <!-- Connect Button -->
+                        <button id="connect-github-btn" onclick="connectGitHub()" 
+                                class="p-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-all duration-200 text-sm font-medium shadow-lg flex items-center">
+                            <!-- GitHub Icon (Feather Icon) -->
+                            <i data-feather="github" class="h-5 w-5 mr-1 text-white"></i>
+                            <span>Connect GitHub</span>
+                        </button>
+                        
+                        <button onclick="clearCanvas(); updateProfilePreview();" class="p-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-all duration-200 text-sm font-medium shadow-lg flex items-center">
+                            <!-- Trash/Clear Icon (Feather Icon) -->
+                            <i data-feather="trash-2" class="h-5 w-5 mr-1"></i>
+                            Clear
+                        </button>
+                        <button onclick="downloadImage()" class="p-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all duration-200 text-sm font-medium shadow-lg flex items-center">
+                            <!-- Download Icon (Feather Icon) -->
+                            <i data-feather="download" class="h-5 w-5 mr-1"></i>
+                            Download PFP
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Workspace: Drawing Area (2/3) and Preview (1/3) -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <!-- 1. Drawing Area -->
+            <div class="lg:col-span-2 relative flex justify-center items-center w-full aspect-square max-w-lg mx-auto lg:mx-0 bg-app-card rounded-xl shadow-2xl border border-primary-color overflow-hidden transition-colors duration-500">
+                
+                <!-- Custom Drawing Canvas -->
+                <canvas id="drawing-canvas" class="w-full h-full" width="512" height="512" style="display: none;"></canvas>
+                
+                <!-- Pixel Art Grid -->
+                <div id="pixel-grid" class="w-full h-full p-0" style="display: grid; grid-template-columns: repeat(32, 1fr); gap: 0;">
+                    <!-- Pixels will be generated here by JS -->
+                </div>
+
+                <!-- Picture Upload UI -->
+                <div id="upload-ui" class="absolute inset-0 flex flex-col items-center justify-center p-8 space-y-4 text-center border-4 border-dashed border-primary-color m-4 rounded-lg" style="display: none;">
+                    <!-- Upload Icon (Feather Icon) -->
+                    <i data-feather="upload-cloud" class="h-16 w-16 text-primary-color"></i>
+                    <p class="text-lg font-semibold text-text-secondary transition-colors duration-500">Drag & drop your image here, or click the button.</p>
+                    <input type="file" id="image-upload-input" accept="image/*" class="hidden">
+                    <button onclick="document.getElementById('image-upload-input').click()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-all duration-200 text-sm font-medium shadow-lg flex items-center space-x-2">
+                        <!-- Select Image Icon (Feather Icon) -->
+                        <i data-feather="image" class="h-5 w-5"></i>
+                        <span>Select Image</span>
+                    </button>
+                </div>
+
+                <!-- Locked Drawing UI (NEW) -->
+                <div id="locked-draw-ui" class="absolute inset-0 flex flex-col items-center justify-center p-8 space-y-4 text-center m-4 rounded-lg" style="display: none;">
+                    <!-- Locked Icon (Feather Icon) -->
+                    <i data-feather="lock" class="h-16 w-16 text-red-500"></i>
+                    
+                    <p class="text-xl font-bold text-text-secondary transition-colors duration-500">
+                        Unlock Custom Drawing
+                    </p>
+                    <p class="text-lg font-medium text-primary-color">
+                        Connect and add us to your GitHub bio!
+                    </p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 max-w-xs">
+                        By connecting, we will automatically add this text to your bio: 
+                        <code class="block mt-2 p-2 bg-control-panel rounded-md select-all border border-border-color">I used Avatarize Studio to make my custom profile picture! Check it out: https://avatarizestudio.pages.dev/</code>
+                    </p>
+
+                    <button onclick="connectGitHub()" 
+                            class="mt-4 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-all duration-200 text-base font-medium shadow-lg flex items-center space-x-2">
+                        <!-- GitHub Icon (Feather Icon) -->
+                        <i data-feather="github" class="h-5 w-5"></i>
+                        <span>Connect & Unlock</span>
+                    </button>
+                </div>
+
+                <!-- Drawing Cursor for Free Drawing Mode -->
+                <div id="drawing-cursor" class="drawing-cursor" style="display: none;"></div>
+            </div>
+
+            <!-- 2. GitHub Profile Preview -->
+            <div class="lg:col-span-1 bg-app-card p-6 rounded-xl shadow-2xl flex flex-col items-center border border-primary-color space-y-4 transition-colors duration-500">
+                <h2 class="text-lg font-semibold text-text-secondary border-b border-border-color pb-2 w-full text-center transition-colors duration-500">GitHub Profile Preview</h2>
+
+                <div id="profile-picture-preview" class="w-28 h-28 sm:w-36 sm:h-36 rounded-full bg-cover bg-center border-4 border-primary-color shadow-xl transition-all duration-300" style="background-image: url('https://placehold.co/144x144/8b5cf6/ffffff?text=Avatar');">
+                </div>
+
+                <h3 id="preview-username" class="text-2xl font-bold text-text-secondary mt-2 transition-colors duration-500">Guest User</h3>
+                <p id="preview-handle" class="text-primary-color text-sm transition-colors duration-500">@guest</p>
+                
+                <!-- Set PFP button (styled like a mini action button) -->
+                <button onclick="setProfilePicture()" id="set-pfp-btn" disabled
+                        class="w-full p-2 bg-gray-500 text-white rounded-lg transition-all duration-200 text-sm font-medium shadow-lg flex items-center justify-center space-x-2 disabled:opacity-50">
+                    <!-- User Icon (Feather Icon) -->
+                    <i data-feather="user" class="h-5 w-5"></i>
+                    <span>Log in to set profile picture</span>
+                </button>
+
+
+                <p id="preview-description" class="text-gray-400 dark:text-gray-400 text-center text-sm">
+                    Connect with GitHub to personalize this profile!
+                </p>
+
+                <div class="w-full grid grid-cols-2 gap-4 text-center mt-4">
+                    <div class="bg-control-panel p-3 rounded-lg transition-colors duration-500">
+                        <p id="preview-repos" class="text-lg font-bold text-text-secondary transition-colors duration-500">--</p>
+                        <p class="text-xs text-gray-400 dark:text-gray-400">Repositories</p>
+                    </div>
+                    <div class="bg-control-panel p-3 rounded-lg transition-colors duration-500">
+                        <p id="preview-followers" class="text-lg font-bold text-text-secondary transition-colors duration-500">--</p>
+                        <p class="text-xs text-gray-400 dark:text-gray-400">Followers</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="message-box" class="fixed bottom-4 right-4 bg-purple-600 text-white p-3 rounded-lg shadow-xl hidden transition-opacity duration-300"></div>
+
+    </div>
+
+    <script>
+        // --- Supabase Configuration ---
+        // NOTE: These keys are for a public demo project and are safe to expose.
+        const SUPABASE_URL = 'https://emzpcoshfdtxhxxdwmph.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVtenBjb3NoZmR0eGh4eGR3bXBoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU4OTMzOTcsImV4cCI6MjA4MTQ2OTM5N30.uctDw7fGQSVY4IKlLYZWXwo2fNJZ82MMyk9R5QNM_ik';
+        const GITHUB_BIO_TEXT = "I used Avatarize Studio to make my custom profile picture! Check it out: https://avatarizestudio.pages.dev/";
+        
+        // --- Configuration & State ---
+        const PIXEL_GRID_SIZE = 32;
+
+        let supabase = null; 
+        let currentUserId = null; 
+        let currentUserName = 'Guest User';
+        let isConnected = false;
+        let isBioRequirementMet = false; // NEW: State to track if the bio text has been set
+
+        // --- DOM Elements ---
+        const htmlElement = document.documentElement;
+        const colorPicker = document.getElementById('color-picker');
+        const bgColorPicker = document.getElementById('bg-color-picker');
+        const drawingCanvas = document.getElementById('drawing-canvas');
+        const pixelGrid = document.getElementById('pixel-grid');
+        const uploadUI = document.getElementById('upload-ui');
+        const lockedDrawUI = document.getElementById('locked-draw-ui'); // NEW
+        const imageUploadInput = document.getElementById('image-upload-input');
+        const messageBox = document.getElementById('message-box');
+        const drawingCursor = document.getElementById('drawing-cursor');
+        const themeIconSun = document.getElementById('theme-icon-sun');
+        const themeIconMoon = document.getElementById('theme-icon-moon');
+        
+        // Profile Preview Elements
+        const profilePfpEl = document.getElementById('profile-picture-preview');
+        const profileNameEl = document.getElementById('preview-username');
+        const profileHandleEl = document.getElementById('preview-handle');
+        const profileDescriptionEl = document.getElementById('preview-description');
+        const profileReposEl = document.getElementById('preview-repos');
+        const profileFollowersEl = document.getElementById('preview-followers');
+        const connectButton = document.getElementById('connect-github-btn');
+        const setPfpBtn = document.getElementById('set-pfp-btn');
+
+        const ctx = drawingCanvas.getContext('2d');
+        
+        // --- State Variables (Drawing) ---
+        let currentMode = 'pixel'; // 'pixel', 'draw', or 'upload'
+        let isDrawing = false;
+        let isPixelDrawing = false;
+        let lastX = 0;
+        let lastY = 0;
+        let brushSize = 10; 
+
+        // Array to manage mode buttons for dynamic styling
+        const modeButtons = [
+            { btn: document.getElementById('mode-pixel'), mode: 'pixel' },
+            { btn: document.getElementById('mode-draw'), mode: 'draw' },
+            { btn: document.getElementById('mode-upload'), mode: 'upload' }
+        ];
+        
+        // --- Connection Logic (Supabase GitHub OAuth) ---
+
+        /**
+         * Initiates the GitHub OAuth flow via Supabase.
+         */
+        async function connectGitHub() {
+            if (isConnected) {
+                showTemporaryMessage('Already connected!', 'bg-green-600');
+                return;
+            }
+
+            try {
+                // IMPORTANT: Changed scopes to 'user' which allows profile (bio) updates.
+                const { error } = await supabase.auth.signInWithOAuth({
+                    provider: 'github',
+                    options: {
+                        scopes: 'user', 
+                    },
+                });
+
+                if (error) throw error;
+
+                // The browser will now redirect to GitHub for authorization.
+
+            } catch (error) {
+                console.error("Supabase GitHub Auth Error:", error.message);
+                showTemporaryMessage(`Connection failed: ${error.message.substring(0, 50)}...`, 'bg-red-600');
+            }
+        }
+
+        /**
+         * Updates the UI based on the connection status.
+         * @param {string} text 
+         * @param {string} classes 
+         * @param {boolean} disabled 
+         */
+        function updateConnectButton(text, classes, disabled) {
+            connectButton.disabled = disabled;
+            connectButton.className = 'p-2 rounded-lg transition-all duration-200 text-sm font-medium shadow-lg flex items-center';
+            // Remove previous color classes
+            connectButton.classList.remove('bg-purple-600', 'hover:bg-purple-700', 'bg-green-600', 'hover:bg-green-700', 'bg-gray-500', 'hover:bg-gray-600');
+            
+            connectButton.classList.add(...classes.split(' '));
+            connectButton.innerHTML = `
+                <i data-feather="github" class="h-5 w-5 mr-1 text-white"></i>
+                <span>${text}</span>
+            `;
+            feather.replace(); // Re-render icons
+        }
+        
+        /**
+         * Uses the GitHub API to update the user's bio.
+         * @param {string} token - The GitHub access token.
+         */
+        async function updateGitHubBio(token, currentBio) {
+            const newBio = currentBio ? `${currentBio} | ${GITHUB_BIO_TEXT}` : GITHUB_BIO_TEXT;
+
+            try {
+                const response = await fetch('https://api.github.com/user', {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': `token ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        bio: newBio 
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`GitHub API error: ${errorData.message}`);
+                }
+
+                isBioRequirementMet = true;
+                setMode(currentMode); // Re-evaluate mode to potentially unlock drawing
+                showTemporaryMessage('GitHub bio updated! Custom Drawing is now UNLOCKED.', 'bg-green-600');
+                
+            } catch (error) {
+                console.error("Failed to update GitHub bio:", error.message);
+                showTemporaryMessage(`Bio update failed: ${error.message}. Please update manually to unlock drawing.`, 'bg-red-600');
+                // The drawing mode remains locked if the API call failed
+            }
+        }
+
+        /**
+         * Handles post-authentication logic, updating the UI with GitHub data.
+         * @param {object} session - The Supabase session object.
+         */
+        function handleAuthenticatedUser(session) {
+            currentUserId = session.user.id;
+            isConnected = true;
+            
+            // Extract GitHub metadata from the Supabase session
+            const githubData = session.user.user_metadata;
+            const githubToken = session.provider_token; // Get the GitHub access token
+            
+            currentUserName = githubData.full_name || githubData.user_name || 'GitHub User';
+
+            profileNameEl.textContent = currentUserName;
+            profileHandleEl.textContent = `@${githubData.user_name || 'unknown'}`;
+            profileDescriptionEl.textContent = 'Data pulled from GitHub profile. Save your custom PFP below!';
+            
+            // Mock or actual data
+            profileReposEl.textContent = githubData.public_repos ? githubData.public_repos.toString() : '99';
+            profileFollowersEl.textContent = githubData.followers ? githubData.followers.toString() : '5k';
+            
+            // Check if the required text is already in the bio
+            const userBio = githubData.description || ''; // GitHub uses 'bio', Supabase might map to 'description'
+            if (userBio.includes(GITHUB_BIO_TEXT)) {
+                 isBioRequirementMet = true;
+            } else if (githubToken) {
+                // If not met, and we have a token, attempt to update the bio immediately.
+                updateGitHubBio(githubToken, userBio);
+            }
+
+            // Set initial PFP to the user's current GitHub avatar
+            profilePfpEl.style.backgroundImage = `url('${githubData.avatar_url || 'https://placehold.co/144x144/8b5cf6/ffffff?text=Avatar'}')`;
+            
+            // Update buttons
+            updateConnectButton(`Connected (${githubData.user_name})`, 'bg-green-600 hover:bg-green-700', false);
+            setPfpBtn.disabled = false;
+            setPfpBtn.classList.remove('bg-gray-500');
+            setPfpBtn.classList.add('bg-purple-600', 'hover:bg-purple-700');
+            setPfpBtn.innerHTML = `<!-- User Icon (Feather Icon) -->
+                <i data-feather="user" class="h-5 w-5 mr-1"></i>
+                <span>Set my profile picture (Save to Supabase)</span>`;
+
+            showTemporaryMessage(`Welcome, ${githubData.user_name}! Successfully connected to GitHub.`, 'bg-green-600');
+
+            // Load saved avatar from Supabase if available
+            loadProfilePicture(currentUserId);
+            setMode(currentMode); // Re-evaluate mode to apply lock/unlock
+            feather.replace(); // Re-render icons
+        }
+
+        /**
+         * Resets the UI to the non-authenticated state.
+         */
+        function resetUIForAnonUser() {
+            currentUserId = null;
+            isConnected = false;
+            isBioRequirementMet = false; // Reset bio state
+            currentUserName = 'Guest User';
+
+            profileNameEl.textContent = 'Guest User';
+            profileHandleEl.textContent = '@guest';
+            profileDescriptionEl.textContent = 'Connect with GitHub to personalize this profile!';
+            profileReposEl.textContent = '--';
+            profileFollowersEl.textContent = '--';
+            
+            // Reset PFP to placeholder
+            profilePfpEl.style.backgroundImage = `url('https://placehold.co/144x144/8b5cf6/ffffff?text=Avatar')`;
+
+            // Reset buttons
+            updateConnectButton('Connect GitHub', 'bg-purple-600 hover:bg-purple-700', false);
+            setPfpBtn.disabled = true;
+            setPfpBtn.classList.add('bg-gray-500');
+            setPfpBtn.classList.remove('bg-purple-600', 'hover:bg-purple-700');
+            setPfpBtn.innerHTML = `<!-- User Icon (Feather Icon) -->
+                <i data-feather="user" class="h-5 w-5"></i>
+                <span>Log in to set profile picture</span>`;
+
+            setMode(currentMode); // Re-evaluate mode to apply lock/unlock
+            feather.replace(); // Re-render icons
+        }
+
+        // --- Theme Logic (omitted for brevity, assume unchanged) ---
+        function toggleTheme() {
+            if (htmlElement.classList.contains('dark')) {
+                htmlElement.classList.remove('dark');
+                htmlElement.classList.add('light');
+                themeIconSun.style.display = 'block';
+                themeIconMoon.style.display = 'none';
+            } else {
+                htmlElement.classList.remove('light');
+                htmlElement.classList.add('dark');
+                themeIconSun.style.display = 'none';
+                themeIconMoon.style.display = 'block';
+            }
+            updateModeButtonStyling();
+        }
+        
+        function setInitialTheme() {
+            if (htmlElement.classList.contains('dark')) {
+                themeIconSun.style.display = 'none';
+                themeIconMoon.style.display = 'block';
+            } else {
+                themeIconSun.style.display = 'block';
+                themeIconMoon.style.display = 'none';
+            }
+        }
+
+        function updateModeButtonStyling() {
+            const isLight = htmlElement.classList.contains('light');
+
+            modeButtons.forEach(({ btn, mode }) => {
+                const isSelected = mode === currentMode;
+                
+                const baseClasses = ['p-2', 'sm:px-4', 'rounded-lg', 'font-medium', 'transition-all', 'duration-200'];
+
+                btn.className = '';
+                btn.classList.add(...baseClasses);
+                
+                if (isSelected) {
+                    btn.classList.add('bg-gray-900', 'dark:bg-gray-900', 'text-primary-color', 'shadow-md');
+                } else {
+                    let deselectedText = isLight ? 'text-gray-700' : 'text-gray-300';
+                    let deselectedHoverBg = isLight ? 'hover:bg-gray-200' : 'hover:bg-gray-600';
+                    
+                    btn.classList.add(deselectedText, deselectedHoverBg);
+                }
+            });
+        }
+        // --- Initialization and Drawing Logic (omitted for brevity, assume unchanged) ---
+
+        function initializeBackground() {
+            const bgColor = bgColorPicker.value;
+            ctx.fillStyle = bgColor;
+            ctx.fillRect(0, 0, drawingCanvas.width, drawingCanvas.height);
+            pixelGrid.style.backgroundColor = bgColor;
+            Array.from(pixelGrid.children).forEach(pixel => {
+                pixel.style.backgroundColor = 'rgba(0, 0, 0, 0)';
+            });
+            stopAllDrawing();
+        }
+
+        function initializePixelGrid() {
+            pixelGrid.innerHTML = '';
+            for (let i = 0; i < PIXEL_GRID_SIZE * PIXEL_GRID_SIZE; i++) {
+                const pixel = document.createElement('div');
+                pixel.className = 'w-full h-full transition-colors duration-100 hover:opacity-80 cursor-pointer';
+                pixel.dataset.index = i;
+                pixel.style.backgroundColor = 'rgba(0, 0, 0, 0)'; 
+                pixel.addEventListener('mousedown', startPixelDraw);
+                pixel.addEventListener('mouseover', continuePixelDraw);
+                pixelGrid.appendChild(pixel);
+            }
+            initializeBackground(); 
+        }
+
+        function initializeDrawingCanvas() {
+            drawingCanvas.width = 512;
+            drawingCanvas.height = 512;
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+            ctx.lineWidth = brushSize;
+            drawingCanvas.addEventListener('mousedown', startDrawing);
+            drawingCanvas.addEventListener('mousemove', draw);
+            drawingCanvas.addEventListener('mouseout', stopAllDrawing); 
+            drawingCanvas.addEventListener('touchstart', startDrawingTouch);
+            drawingCanvas.addEventListener('touchmove', drawTouch);
+            drawingCanvas.addEventListener('mousemove', updateDrawingCursor);
+            drawingCanvas.addEventListener('mouseleave', hideDrawingCursor);
+            initializeBackground();
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            drawingCanvas.style.display = 'none';
+            pixelGrid.style.display = 'none';
+            drawingCursor.style.display = 'none';
+            uploadUI.style.display = 'none';
+            lockedDrawUI.style.display = 'none'; // Ensure locked UI is hidden by default
+            updateModeButtonStyling();
+
+            if (mode === 'pixel') {
+                pixelGrid.style.display = 'grid';
+            } else if (mode === 'draw') {
+                if (isConnected && isBioRequirementMet) {
+                    // UNLOCKED: Show canvas
+                    drawingCanvas.style.display = 'block';
+                } else {
+                    // LOCKED: Show locked screen
+                    lockedDrawUI.style.display = 'flex';
+                }
+            } else if (mode === 'upload') { 
+                uploadUI.style.display = 'flex';
+                if (!isCanvasClear()) {
+                     drawingCanvas.style.display = 'block';
+                     uploadUI.style.display = 'none';
+                }
+            }
+            updateProfilePreview();
+        }
+        
+        function clearCanvas() {
+            initializeBackground();
+            if (currentMode === 'upload') {
+                drawingCanvas.style.display = 'none';
+                uploadUI.style.display = 'flex';
+            }
+            showTemporaryMessage(`Canvas cleared in ${currentMode === 'pixel' ? 'Pixel Art' : 'Drawing'} mode!`, 'bg-red-500');
+            updateProfilePreview();
+        }
+
+        function showTemporaryMessage(message, bgColorClasses = 'bg-primary-color') {
+            messageBox.textContent = message;
+            messageBox.className = `fixed bottom-4 right-4 ${bgColorClasses} text-white p-3 rounded-lg shadow-xl opacity-0 transition-opacity duration-300`;
+            messageBox.style.display = 'block';
+            setTimeout(() => messageBox.classList.add('opacity-100'), 10);
+            setTimeout(() => {
+                messageBox.classList.remove('opacity-100');
+                setTimeout(() => messageBox.style.display = 'none', 300);
+            }, 3000);
+        }
+
+        document.addEventListener('mouseup', stopAllDrawing);
+        document.addEventListener('touchend', stopAllDrawing);
+        document.addEventListener('touchcancel', stopAllDrawing);
+
+        function stopAllDrawing() {
+            if (isDrawing || isPixelDrawing) {
+                isDrawing = false;
+                isPixelDrawing = false;
+                updateProfilePreview();
+            }
+        }
+
+        function startPixelDraw(e) { e.preventDefault(); isPixelDrawing = true; colorPixel(e.target); }
+        function continuePixelDraw(e) { if (!isPixelDrawing || e.buttons !== 1) return; const target = e.target; if (target.dataset.index) { colorPixel(target); } }
+        function colorPixel(pixelElement) {
+            if (pixelElement.dataset.index) {
+                pixelElement.style.backgroundColor = colorPicker.value;
+            }
+        }
+
+        function startDrawing(e) { if (currentMode !== 'draw' || !isBioRequirementMet) return; isDrawing = true; [lastX, lastY] = getCoordinates(e); ctx.strokeStyle = colorPicker.value; ctx.lineWidth = brushSize; ctx.beginPath(); ctx.arc(lastX, lastY, brushSize / 2, 0, Math.PI * 2); ctx.fillStyle = colorPicker.value; ctx.fill(); }
+        function draw(e) { if (!isDrawing || currentMode !== 'draw') return; e.preventDefault(); const [x, y] = getCoordinates(e); ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(x, y); ctx.stroke(); [lastX, lastY] = [x, y]; updateProfilePreview(); }
+        function startDrawingTouch(e) { if (currentMode !== 'draw' || !isBioRequirementMet) return; e.preventDefault(); isDrawing = true; const touch = e.touches[0]; [lastX, lastY] = getCoordinates(touch); ctx.strokeStyle = colorPicker.value; ctx.lineWidth = brushSize; ctx.beginPath(); ctx.arc(lastX, lastY, brushSize / 2, 0, Math.PI * 2); ctx.fillStyle = colorPicker.value; ctx.fill(); }
+        function drawTouch(e) { if (!isDrawing || currentMode !== 'draw') return; e.preventDefault(); const [x, y] = getCoordinates(e); ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(x, y); ctx.stroke(); [lastX, lastY] = [x, y]; updateProfilePreview(); }
+        
+        function getCoordinates(e) {
+            const rect = drawingCanvas.getBoundingClientRect();
+            const clientX = e.clientX !== undefined ? e.clientX : (e.targetTouches?.[0] || e.changedTouches?.[0])?.clientX;
+            const clientY = e.clientY !== undefined ? e.clientY : (e.targetTouches?.[0] || e.changedTouches?.[0])?.clientY;
+            const x = (clientX - rect.left) * (drawingCanvas.width / rect.width);
+            const y = (clientY - rect.top) * (drawingCanvas.height / rect.height);
+            return [x, y];
+        }
+        function updateDrawingCursor(e) {
+            if (currentMode !== 'draw' || !isBioRequirementMet) return;
+            const rect = drawingCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const visualBrushSize = (brushSize / drawingCanvas.width) * rect.width;
+            drawingCursor.style.width = `${visualBrushSize}px`;
+            drawingCursor.style.height = `${visualBrushSize}px`;
+            drawingCursor.style.left = `${x - visualBrushSize / 2}px`;
+            drawingCursor.style.top = `${y - visualBrushSize / 2}px`;
+            drawingCursor.style.display = 'block';
+            drawingCursor.style.borderRadius = `${visualBrushSize / 2}px`;
+            drawingCursor.style.borderColor = colorPicker.value;
+        }
+        function hideDrawingCursor() { if (currentMode === 'draw' && isBioRequirementMet) { drawingCursor.style.display = 'none'; } }
+
+        function isCanvasClear() {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = drawingCanvas.width;
+            tempCanvas.height = drawingCanvas.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.fillStyle = bgColorPicker.value;
+            tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+            const imageDataCurrent = ctx.getImageData(0, 0, drawingCanvas.width, drawingCanvas.height).data;
+            const imageDataClear = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
+            if (imageDataCurrent.length !== imageDataClear.length) return false;
+            for (let i = 0; i < imageDataCurrent.length; i++) {
+                if (Math.abs(imageDataCurrent[i] - imageDataClear[i]) > 5) return false;
+            }
+            return true;
+        }
+
+        function processImageUpload(file) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvasSize = 512;
+                    initializeBackground(); 
+                    const imgRatio = img.width / img.height;
+                    const canvasRatio = canvasSize / canvasSize; 
+                    let drawWidth, drawHeight, offsetX, offsetY;
+                    if (imgRatio > canvasRatio) { 
+                        drawHeight = canvasSize;
+                        drawWidth = img.width * (canvasSize / img.height);
+                        offsetX = (canvasSize - drawWidth) / 2;
+                        offsetY = 0;
+                    } else { 
+                        drawWidth = canvasSize;
+                        drawHeight = img.height * (canvasSize / img.width);
+                        offsetX = 0;
+                        offsetY = (canvasSize - drawHeight) / 2;
+                    }
+                    ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+                    showTemporaryMessage('Image uploaded and set to canvas!', 'bg-blue-600');
+                    updateProfilePreview();
+                    drawingCanvas.style.display = 'block';
+                    uploadUI.style.display = 'none';
+                };
+                img.onerror = function() { showTemporaryMessage('Error loading image. Please try another file.', 'bg-red-600'); };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        imageUploadInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                processImageUpload(file);
+            } else {
+                showTemporaryMessage('Please select a valid image file.', 'bg-red-600');
+            }
+            e.target.value = null;
+        });
+
+        // --- Supabase Storage/DB Logic (omitted for brevity, assumed unchanged) ---
+
+        function dataURLToBlob(dataurl) {
+            const arr = dataurl.split(',');
+            const mime = arr[0].match(/:(.*?);/)[1];
+            const bstr = atob(arr[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while(n--){
+                u8arr[n] = bstr.charCodeAt(n);
+            }
+            return new Blob([u8arr], {type:mime});
+        }
+        
+        /**
+         * Uploads the generated PFP to Supabase Storage and saves the URL to the DB.
+         */
+        async function setProfilePicture() {
+            if (!currentUserId) {
+                showTemporaryMessage('Please connect your GitHub account first!', 'bg-red-500');
+                return;
+            }
+
+            setPfpBtn.disabled = true;
+            setPfpBtn.innerHTML = '<div class="loading-ring bg-white"></div> <span>Saving...</span>';
+
+            try {
+                const dataURL = generateImageDataURL();
+                const imageBlob = dataURLToBlob(dataURL);
+                const fileType = 'image/png';
+                const filePath = `${currentUserId}/avatar-${Date.now()}.png`; 
+
+                // 1. Upload to Supabase Storage (Bucket: 'avatars')
+                const { data: uploadData, error: uploadError } = await supabase.storage
+                    .from('avatars')
+                    .upload(filePath, imageBlob, {
+                        cacheControl: '3600',
+                        upsert: true,
+                        contentType: fileType
+                    });
+                
+                if (uploadError) throw uploadError;
+
+                // 2. Get the public URL
+                const { data: publicUrlData } = supabase.storage
+                    .from('avatars')
+                    .getPublicUrl(filePath);
+
+                const publicUrl = publicUrlData.publicUrl;
+
+                // 3. Save the public URL to the 'profiles' table
+                const profileUpdate = {
+                    id: currentUserId,
+                    username: currentUserName, 
+                    avatar_url: publicUrl,
+                    updated_at: new Date().toISOString()
+                };
+
+                const { error: dbError } = await supabase
+                    .from('profiles')
+                    .upsert(profileUpdate, { onConflict: 'id' });
+
+                if (dbError) throw dbError;
+
+                showTemporaryMessage('Avatar saved to Supabase! (Note: GitHub API does not allow setting the primary PFP)', 'bg-yellow-600');
+                // Update the profile preview's background image with the *new* public URL
+                profilePfpEl.style.backgroundImage = `url('${publicUrl}')`;
+
+            } catch (error) {
+                console.error("Supabase Storage/DB Error:", error.message);
+                showTemporaryMessage(`Failed to save PFP: ${error.message.substring(0, 50)}...`, 'bg-red-600');
+            } finally {
+                setPfpBtn.disabled = false;
+                setPfpBtn.classList.remove('bg-gray-500');
+                setPfpBtn.classList.add('bg-purple-600', 'hover:bg-purple-700');
+                setPfpBtn.innerHTML = `<!-- User Icon (Feather Icon) -->
+                    <i data-feather="user" class="h-5 w-5 mr-1"></i>
+                    <span>Set my profile picture (Save to Supabase)</span>`;
+                feather.replace(); // Re-render icons after changing innerHTML
+            }
+        }
+        
+        /**
+         * Loads the existing avatar URL from the 'profiles' table if it exists.
+         */
+        async function loadProfilePicture(userId) {
+            try {
+                const { data, error } = await supabase
+                    .from('profiles')
+                    .select('avatar_url')
+                    .eq('id', userId)
+                    .single();
+
+                if (error && error.code !== 'PGRST116') { // PGRST116 is "No rows found"
+                    throw error;
+                }
+                
+                if (data && data.avatar_url) {
+                    profilePfpEl.style.backgroundImage = `url('${data.avatar_url}')`;
+                    showTemporaryMessage('Loaded previous custom avatar!', 'bg-blue-600');
+                }
+            } catch (error) {
+                console.error("Error loading profile picture:", error.message);
+            }
+        }
+
+        // --- Image Generation/Export Logic (omitted for brevity, assume unchanged) ---
+
+        function generateImageDataURL() {
+            const size = 512; 
+            const bgColor = bgColorPicker.value;
+
+            if (currentMode === 'pixel') {
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = PIXEL_GRID_SIZE; 
+                tempCanvas.height = PIXEL_GRID_SIZE;
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCtx.fillStyle = bgColor;
+                tempCtx.fillRect(0, 0, PIXEL_GRID_SIZE, PIXEL_GRID_SIZE);
+
+                const pixels = Array.from(pixelGrid.children);
+                pixels.forEach((pixelEl, index) => {
+                    const color = pixelEl.style.backgroundColor;
+                    if (color && color.indexOf('rgba(0, 0, 0, 0)') === -1) { 
+                        const x = index % PIXEL_GRID_SIZE;
+                        const y = Math.floor(index / PIXEL_GRID_SIZE);
+                        tempCtx.fillStyle = color;
+                        tempCtx.fillRect(x, y, 1, 1);
+                    }
+                });
+                
+                const finalCanvas = document.createElement('canvas');
+                finalCanvas.width = size;
+                finalCanvas.height = size;
+                const finalCtx = finalCanvas.getContext('2d');
+                finalCtx.imageSmoothingEnabled = false;
+                finalCtx.drawImage(tempCanvas, 0, 0, size, size);
+
+                return finalCanvas.toDataURL('image/png');
+
+            } else { 
+                return drawingCanvas.toDataURL('image/png');
+            }
+        }
+
+        function updateProfilePreview() {
+            const dataURL = generateImageDataURL();
+            if (profilePfpEl) {
+                profilePfpEl.style.backgroundImage = `url('${dataURL}')`;
+            }
+        }
+
+        function downloadImage() {
+            const dataURL = generateImageDataURL();
+            const link = document.createElement('a');
+            link.href = dataURL;
+            link.download = 'avatarize-pfp.png';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showTemporaryMessage('Image downloaded successfully!', 'bg-green-600');
+        }
+
+
+        // --- Startup ---
+        window.onload = function() {
+            // Initialize Supabase client
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+            initializeDrawingCanvas();
+            initializePixelGrid();
+            setMode('pixel'); // Start in pixel mode
+            setInitialTheme(); // Set initial icon based on HTML class
+
+            // Listen for auth state changes (handles redirect from OAuth)
+            supabase.auth.onAuthStateChange((event, session) => {
+                if (session) {
+                    handleAuthenticatedUser(session);
+                } else {
+                    resetUIForAnonUser();
+                }
+            });
+            
+            // Render Feather Icons at startup
+            if (typeof feather !== 'undefined') {
+                feather.replace();
+            }
+        };
+    </script>
+</body>
+</html>
